@@ -37,6 +37,26 @@ resource "aws_iam_role_policy" "lambda_sqs_policy" {
 EOF
 }
 
+resource "aws_iam_role_policy" "lambda_cloudwatch_policy" {
+  name = "lambda_cloudwatch_policy"
+  role = "${aws_iam_role.iam_for_lambda.id}"
+
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "logs:*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
 resource "aws_lambda_function" "sqs_notification_function" {
   filename         = "./lambda/lambda_function.zip"
   description      = "Send to SQS a message using cron from CloudWatch"
@@ -45,6 +65,7 @@ resource "aws_lambda_function" "sqs_notification_function" {
   handler          = "handler.sendNotificationToSQS"
   source_code_hash = "${base64sha256(file("./lambda/lambda_function.zip"))}"
   runtime          = "nodejs8.10"
+  publish          = "true"
   environment {
     variables {
       region = "${var.region}",
@@ -59,4 +80,12 @@ resource "aws_lambda_permission" "allow_cloudwatch_to_call_lambda" {
     function_name = "${aws_lambda_function.sqs_notification_function.function_name}"
     principal = "events.amazonaws.com"
     source_arn = "${aws_cloudwatch_event_rule.event.arn}"
+}
+
+
+resource "aws_lambda_alias" "sqs_notification_function_alias" {
+  name             = "prod"
+  description      = "Lambda que envia mensagem para o SQS"
+  function_name    = "${aws_lambda_function.sqs_notification_function.arn}"
+  function_version = "${aws_lambda_function.sqs_notification_function.version}"
 }
